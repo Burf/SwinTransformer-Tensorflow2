@@ -417,7 +417,7 @@ def load_weight(keras_model, torch_url):
     """
     try:
         import torch
-        torch_weight = torch.hub.load_state_dict_from_url(torch_url, progress = True, check_hash = True)
+        torch_weight = torch.hub.load_state_dict_from_url(torch_url, map_location = "cpu", progress = True, check_hash = True)
     except:
         print("If you want to use 'SwinTransformerV1 Weight', please install 'torch 1.1▲'")
         return keras_model
@@ -436,10 +436,13 @@ def load_weight(keras_model, torch_url):
     values = [weight[k] for k in keys]
     
     for w in keras_model.weights:
-        tf.keras.backend.set_value(w, values.pop(0))
+        try:
+            tf.keras.backend.set_value(w, values.pop(0))
+        except:
+            pass
     return keras_model
     
-def swin_transformer_tiny(input_tensor = None, input_shape = None, classes = 1000, include_top = True, weights = "imagenet"):
+def swin_transformer_tiny(input_tensor = None, input_shape = None, window_size = 7, classes = 1000, include_top = True, weights = "imagenet"):
     if input_tensor is None:
         img_input = tf.keras.layers.Input(shape = input_shape)
     else:
@@ -448,7 +451,7 @@ def swin_transformer_tiny(input_tensor = None, input_shape = None, classes = 100
         else:
             img_input = input_tensor
 
-    out = swin_transformer(img_input, classes, include_top, patch_size = 4, n_feature = 96, n_blocks = [2, 2, 6, 2], n_heads = [3, 6, 12, 24], window_size = 7, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.1, normalize = tf.keras.layers.LayerNormalization, activation = tf.keras.activations.gelu)
+    out = swin_transformer(img_input, classes, include_top, patch_size = 4, n_feature = 96, n_blocks = [2, 2, 6, 2], n_heads = [3, 6, 12, 24], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.1, normalize = tf.keras.layers.LayerNormalization, activation = tf.keras.activations.gelu)
     model = tf.keras.Model(img_input, out)
     
     if weights == "imagenet":
@@ -457,7 +460,7 @@ def swin_transformer_tiny(input_tensor = None, input_shape = None, classes = 100
         model.load_weights(weights)
     return model
     
-def swin_transformer_small(input_tensor = None, input_shape = None, classes = 1000, include_top = True, weights = "imagenet"):
+def swin_transformer_small(input_tensor = None, input_shape = None, window_size = 7, classes = 1000, include_top = True, weights = "imagenet"):
     if input_tensor is None:
         img_input = tf.keras.layers.Input(shape = input_shape)
     else:
@@ -466,7 +469,7 @@ def swin_transformer_small(input_tensor = None, input_shape = None, classes = 10
         else:
             img_input = input_tensor
 
-    out = swin_transformer(img_input, classes, include_top, patch_size = 4, n_feature = 96, n_blocks = [2, 2, 18, 2], n_heads = [3, 6, 12, 24], window_size = 7, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.1, normalize = tf.keras.layers.LayerNormalization, activation = tf.keras.activations.gelu)
+    out = swin_transformer(img_input, classes, include_top, patch_size = 4, n_feature = 96, n_blocks = [2, 2, 18, 2], n_heads = [3, 6, 12, 24], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.1, normalize = tf.keras.layers.LayerNormalization, activation = tf.keras.activations.gelu)
     model = tf.keras.Model(img_input, out)
     
     if weights == "imagenet":
@@ -475,7 +478,7 @@ def swin_transformer_small(input_tensor = None, input_shape = None, classes = 10
         model.load_weights(weights)
     return model
 
-def swin_transformer_base(input_tensor = None, input_shape = None, classes = 1000, include_top = True, weights = "imagenet_22k"):
+def swin_transformer_base(input_tensor = None, input_shape = None, window_size = 7, classes = 1000, include_top = True, weights = "imagenet_22k"):
     #input_shape 224, 224, 3 > window_size 7, input_shape 384, 384, 3 > window_size 12
     if input_tensor is None:
         img_input = tf.keras.layers.Input(shape = input_shape)
@@ -485,27 +488,27 @@ def swin_transformer_base(input_tensor = None, input_shape = None, classes = 100
         else:
             img_input = input_tensor
     
-    window_size = 7
+    w_size = 7
     image_size = 224
     input_shape = tf.keras.backend.int_shape(img_input)[-3:-1]
     if 384 <= np.min(input_shape):
-        window_size = 12
+        w_size = 12
         image_size = 384
 
     out = swin_transformer(img_input, classes, include_top, patch_size = 4, n_feature = 128, n_blocks = [2, 2, 18, 2], n_heads = [4, 8, 16, 32], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.1, normalize = tf.keras.layers.LayerNormalization, activation = tf.keras.activations.gelu)
     model = tf.keras.Model(img_input, out)
     
     if weights == "imagenet":
-        load_weight(model, swin_transformer_url["swin_base_window{0}_{1}".format(window_size, image_size)])
+        load_weight(model, swin_transformer_url["swin_base_window{0}_{1}".format(w_size, image_size)])
     elif weights == "imagenet_22kto1k":
-        load_weight(model, swin_transformer_url["swin_base_window{0}_{1}_22kto1k".format(window_size, image_size)])
+        load_weight(model, swin_transformer_url["swin_base_window{0}_{1}_22kto1k".format(w_size, image_size)])
     elif weights == "imagenet_22k":
-        load_weight(model, swin_transformer_url["swin_base_window{0}_{1}_22k".format(window_size, image_size)])
+        load_weight(model, swin_transformer_url["swin_base_window{0}_{1}_22k".format(w_size, image_size)])
     elif weights is not None:
         model.load_weights(weights)
     return model
 
-def swin_transformer_large(input_tensor = None, input_shape = None, classes = 1000, include_top = True, weights = "imagenet_22k"):
+def swin_transformer_large(input_tensor = None, input_shape = None, window_size = 7, classes = 1000, include_top = True, weights = "imagenet_22k"):
     #input_shape 224, 224, 3 > window_size 7, input_shape 384, 384, 3 > window_size 12
     if input_tensor is None:
         img_input = tf.keras.layers.Input(shape = input_shape)
@@ -515,20 +518,20 @@ def swin_transformer_large(input_tensor = None, input_shape = None, classes = 10
         else:
             img_input = input_tensor
     
-    window_size = 7
+    w_size = 7
     image_size = 224
     input_shape = tf.keras.backend.int_shape(img_input)[-3:-1]
     if 384 <= np.min(input_shape):
-        window_size = 12
+        w_size = 12
         image_size = 384
 
     out = swin_transformer(img_input, classes, include_top, patch_size = 4, n_feature = 192, n_blocks = [2, 2, 18, 2], n_heads = [6, 12, 24, 48], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.1, normalize = tf.keras.layers.LayerNormalization, activation = tf.keras.activations.gelu)
     model = tf.keras.Model(img_input, out)
     
     if weights == "imagenet_22kto1k":
-        load_weight(model, swin_transformer_url["swin_large_window{0}_{1}_22kto1k".format(window_size, image_size)])
+        load_weight(model, swin_transformer_url["swin_large_window{0}_{1}_22kto1k".format(w_size, image_size)])
     elif weights == "imagenet_22k":
-        load_weight(model, swin_transformer_url["swin_large_window{0}_{1}_22k".format(window_size, image_size)])
+        load_weight(model, swin_transformer_url["swin_large_window{0}_{1}_22k".format(w_size, image_size)])
     elif weights is not None:
         model.load_weights(weights)
     return model
