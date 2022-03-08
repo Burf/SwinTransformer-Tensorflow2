@@ -20,7 +20,7 @@ The implementation is based on paper[[1](https://arxiv.org/abs/2103.14030v2)] an
 
 - Python 3
 - tensorflow 2
-- torch 1.1▲
+- torch 1.1▲ (Use the pre-trained weights)
 
 ## Reference
 
