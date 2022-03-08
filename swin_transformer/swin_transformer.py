@@ -1,5 +1,4 @@
 import tensorflow as tf
-import torch
 import numpy as np
 
 class Mlp(tf.keras.layers.Layer):
@@ -416,7 +415,12 @@ def load_weight(keras_model, torch_url):
     https://github.com/SwinTransformer/storage/releases/download/v1.0.0/swin_large_patch4_window7_224_22k.pth
     https://github.com/SwinTransformer/storage/releases/download/v1.0.0/swin_large_patch4_window12_384_22k.pth
     """
-    torch_weight = torch.hub.load_state_dict_from_url(torch_url, progress = True, check_hash = True)
+    try:
+        import torch
+        torch_weight = torch.hub.load_state_dict_from_url(torch_url, progress = True, check_hash = True)
+    except:
+        print("If you want to use 'SwinTransformerV1 Weight', please install 'torch 1.1▲'")
+        return keras_model
     
     weight = {}
     for k, v in torch_weight["model"].items():
