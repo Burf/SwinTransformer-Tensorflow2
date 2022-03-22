@@ -1,6 +1,9 @@
 import tensorflow as tf
 import numpy as np
 
+def normalize(epsilon = 1e-5, **kwargs):
+    return tf.keras.layers.LayerNormalization(epsilon = epsilon, **kwargs)
+
 class Mlp(tf.keras.layers.Layer):
     def __init__(self, n_feature, n_hidden_feature = None, activation = tf.keras.activations.gelu, dropout_rate = 0., **kwargs):
         super(Mlp, self).__init__(**kwargs)
@@ -146,7 +149,7 @@ class DropPath(tf.keras.layers.Layer):
         return config
         
 class SwinTransformerBlock(tf.keras.layers.Layer):
-    def __init__(self, image_shape, n_head, window_size, shift_size = 0, ratio = 4., scale = None, use_bias = True, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0., normalize = tf.keras.layers.LayerNormalization, activation = tf.keras.activations.gelu, **kwargs):
+    def __init__(self, image_shape, n_head, window_size, shift_size = 0, ratio = 4., scale = None, use_bias = True, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0., normalize = normalize, activation = tf.keras.activations.gelu, **kwargs):
         super(SwinTransformerBlock, self).__init__(**kwargs)
         self.image_shape = image_shape
         self.n_head = n_head
@@ -166,11 +169,11 @@ class SwinTransformerBlock(tf.keras.layers.Layer):
         self.normalize = normalize
         self.activation = activation
         
-        self.norm1 = normalize(epsilon = 1e-5, name = "norm1")
+        self.norm1 = normalize(name = "norm1")
         self.attn = WindowAttention(n_head, window_size, scale, use_bias, dropout_rate, attention_dropout_rate, name = "attn")
         if 0 < droppath_rate:
             self.droppath = DropPath(droppath_rate, name = "drop_path")
-        self.norm2 = normalize(epsilon = 1e-5, name = "norm2")
+        self.norm2 = normalize(name = "norm2")
         
     def build(self, input_shape):
         self.mlp = Mlp(input_shape[-1], int(input_shape[-1] * self.ratio), self.activation, self.dropout_rate, name = "mlp")
@@ -252,12 +255,12 @@ class SwinTransformerBlock(tf.keras.layers.Layer):
         return config
     
 class PatchMerging(tf.keras.layers.Layer):
-    def __init__(self, image_shape, normalize = tf.keras.layers.LayerNormalization, **kwargs):
+    def __init__(self, image_shape, normalize = normalize, **kwargs):
         super(PatchMerging, self).__init__(**kwargs)
         self.image_shape = image_shape
         self.normalize = normalize
         
-        self.norm = normalize(epsilon = 1e-5, name = "norm")
+        self.norm = normalize(name = "norm")
         
     def build(self, input_shape):
         self.reduction = tf.keras.layers.Dense(input_shape[-1] * 2, use_bias = False, name = "reduction")
@@ -288,7 +291,7 @@ class PatchMerging(tf.keras.layers.Layer):
         return config
     
 class BasicLayer(tf.keras.layers.Layer):
-    def __init__(self, image_shape, n_block, n_head, window_size, ratio = 4., scale = None, use_bias = True, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0., normalize = tf.keras.layers.LayerNormalization, activation = tf.keras.activations.gelu, downsample = None, **kwargs):
+    def __init__(self, image_shape, n_block, n_head, window_size, ratio = 4., scale = None, use_bias = True, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0., normalize = normalize, activation = tf.keras.activations.gelu, downsample = None, **kwargs):
         super(BasicLayer, self).__init__(**kwargs)
         self.image_shape = image_shape
         self.n_block = n_block
@@ -351,7 +354,7 @@ class PatchEmbed(tf.keras.layers.Layer):
         
         self.project = tf.keras.layers.Conv2D(n_feature, patch_size, strides = patch_size, use_bias = True, name = "proj")
         if normalize is not None:
-            self.norm = normalize(epsilon = 1e-5, name = "norm")
+            self.norm = normalize(name = "norm")
         
     def call(self, inputs):
         out = self.project(inputs)
@@ -367,7 +370,7 @@ class PatchEmbed(tf.keras.layers.Layer):
         config["normalize"] = self.normalize
         return config
     
-def swin_transformer(x, n_class = 1000, include_top = True, patch_size = 4, n_feature = 96, n_blocks = [2, 2, 6, 2], n_heads = [3, 6, 12, 24], window_size = 7, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.1, normalize = tf.keras.layers.LayerNormalization, activation = tf.keras.activations.gelu):
+def swin_transformer(x, n_class = 1000, include_top = True, patch_size = 4, n_feature = 96, n_blocks = [2, 2, 6, 2], n_heads = [3, 6, 12, 24], window_size = 7, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.1, normalize = normalize, activation = tf.keras.activations.gelu):
     #input_shape 224, 224, 3 > window_size 7, input_shape 384, 384, 3 > window_size 12
     patch_size = patch_size if not isinstance(patch_size, int) else [patch_size, patch_size]
     h, w = tf.keras.backend.int_shape(x)[-3:-1]
@@ -380,7 +383,7 @@ def swin_transformer(x, n_class = 1000, include_top = True, patch_size = 4, n_fe
         out = tf.keras.layers.Dropout(dropout_rate, name = "pos_drop")(out)
     for i in range(len(n_blocks)):
         out = BasicLayer([patch_shape[0] // (2 ** i), patch_shape[1] // (2 ** i)], n_blocks[i], n_heads[i], window_size, ratio, scale, use_bias, dropout_rate, attention_dropout_rate, droppath_rate[sum(n_blocks[:i]):sum(n_blocks[:i + 1])], normalize, activation, downsample = PatchMerging if i < (len(n_blocks) - 1) else None, name = "layers_{0}".format(i))(out)
-    out = normalize(epsilon = 1e-5, name = "norm")(out) #b, hw, c
+    out = normalize(name = "norm")(out) #b, hw, c
     
     if include_top:
         out = tf.keras.layers.GlobalAveragePooling1D(name = "avgpool")(out)
@@ -451,7 +454,7 @@ def swin_transformer_tiny(input_tensor = None, input_shape = None, window_size =
         else:
             img_input = input_tensor
 
-    out = swin_transformer(img_input, classes, include_top, patch_size = 4, n_feature = 96, n_blocks = [2, 2, 6, 2], n_heads = [3, 6, 12, 24], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.1, normalize = tf.keras.layers.LayerNormalization, activation = tf.keras.activations.gelu)
+    out = swin_transformer(img_input, classes, include_top, patch_size = 4, n_feature = 96, n_blocks = [2, 2, 6, 2], n_heads = [3, 6, 12, 24], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.1, normalize = normalize, activation = tf.keras.activations.gelu)
     model = tf.keras.Model(img_input, out)
     
     if weights == "imagenet":
@@ -469,7 +472,7 @@ def swin_transformer_small(input_tensor = None, input_shape = None, window_size 
         else:
             img_input = input_tensor
 
-    out = swin_transformer(img_input, classes, include_top, patch_size = 4, n_feature = 96, n_blocks = [2, 2, 18, 2], n_heads = [3, 6, 12, 24], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.1, normalize = tf.keras.layers.LayerNormalization, activation = tf.keras.activations.gelu)
+    out = swin_transformer(img_input, classes, include_top, patch_size = 4, n_feature = 96, n_blocks = [2, 2, 18, 2], n_heads = [3, 6, 12, 24], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.1, normalize = normalize, activation = tf.keras.activations.gelu)
     model = tf.keras.Model(img_input, out)
     
     if weights == "imagenet":
@@ -495,7 +498,7 @@ def swin_transformer_base(input_tensor = None, input_shape = None, window_size =
         w_size = 12
         image_size = 384
 
-    out = swin_transformer(img_input, classes, include_top, patch_size = 4, n_feature = 128, n_blocks = [2, 2, 18, 2], n_heads = [4, 8, 16, 32], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.1, normalize = tf.keras.layers.LayerNormalization, activation = tf.keras.activations.gelu)
+    out = swin_transformer(img_input, classes, include_top, patch_size = 4, n_feature = 128, n_blocks = [2, 2, 18, 2], n_heads = [4, 8, 16, 32], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.1, normalize = normalize, activation = tf.keras.activations.gelu)
     model = tf.keras.Model(img_input, out)
     
     if weights == "imagenet":
@@ -525,7 +528,7 @@ def swin_transformer_large(input_tensor = None, input_shape = None, window_size 
         w_size = 12
         image_size = 384
 
-    out = swin_transformer(img_input, classes, include_top, patch_size = 4, n_feature = 192, n_blocks = [2, 2, 18, 2], n_heads = [6, 12, 24, 48], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.1, normalize = tf.keras.layers.LayerNormalization, activation = tf.keras.activations.gelu)
+    out = swin_transformer(img_input, classes, include_top, patch_size = 4, n_feature = 192, n_blocks = [2, 2, 18, 2], n_heads = [6, 12, 24, 48], window_size = window_size, ratio = 4., scale = None, use_bias = True, patch_normalize = True, dropout_rate = 0., attention_dropout_rate = 0., droppath_rate = 0.1, normalize = normalize, activation = tf.keras.activations.gelu)
     model = tf.keras.Model(img_input, out)
     
     if weights == "imagenet_22kto1k":
